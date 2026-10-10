@@ -1,0 +1,58 @@
+import json
+import boto3
+from decimal import Decimal
+
+# Connect to your active DynamoDB tables
+dynamodb = boto3.resource('dynamodb')
+players_table = dynamodb.Table('players')
+fixtures_table = dynamodb.Table('FC_fixtures')
+
+# Helper to fix JSON decimal errors with DynamoDB
+class DecimalEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            return int(obj) if obj % 1 == 0 else float(obj)
+        return super(DecimalEncoder, self).default(obj)
+
+def lambda_handler(event, context):
+    http_method = event.get('requestContext', {}).get('http', {}).get('method', '')
+    path = event.get('requestContext', {}).get('http', {}).get('path', '')
+
+    # Required to allow your web browser to communicate with the API
+    cors_headers = {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Content-Type,Authorization",
+        "Access-Control-Allow-Methods": "GET,POST,OPTIONS"
+    }
+
+    if http_method == 'OPTIONS':
+        return {"statusCode": 200, "headers": cors_headers, "body": ""}
+
+    try:
+        # Route for Squad Roster
+        if path == "/players":
+            if http_method == 'GET':
+                response = players_table.scan()
+                return {"statusCode": 200, "headers": cors_headers, "body": json.dumps(response.get('Items', []), cls=DecimalEncoder)}
+                    
+            elif http_method == 'POST':
+                body = json.loads(event.get('body', '{}'))
+                players_table.put_item(Item=body)
+                return {"statusCode": 201, "headers": cors_headers, "body": json.dumps({"message": "Player permanently saved!", "item": body}, cls=DecimalEncoder)}
+        
+        # Route for Match Schedule
+        elif path == "/fixtures":
+            if http_method == 'GET':
+                response = fixtures_table.scan()
+                return {"statusCode": 200, "headers": cors_headers, "body": json.dumps(response.get('Items', []), cls=DecimalEncoder)}
+                    
+            elif http_method == 'POST':
+                body = json.loads(event.get('body', '{}'))
+                fixtures_table.put_item(Item=body)
+                return {"statusCode": 201, "headers": cors_headers, "body": json.dumps({"message": "Fixture permanently saved!", "item": body}, cls=DecimalEncoder)}
+
+        return {"statusCode": 404, "headers": cors_headers, "body": json.dumps({"message": "Route Not Found"})}
+        
+    except Exception as e:
+        return {"statusCode": 500, "headers": cors_headers, "body": json.dumps({"error": str(e)})}

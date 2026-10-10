@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FC Cloud Manager</title>
+  <style>
+    :root { --primary: #0a4d2e; --accent: #f5b700; --bg: #f4f6f9; --win: #22c55e; --loss: #ef4444; --draw: #64748b;}
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; background: var(--bg); color: #333; }
+    nav { background: var(--primary); color: white; display: flex; justify-content: space-between; padding: 1rem 2rem; align-items: center; }
+    nav .brand { font-weight: 700; font-size: 1.25rem; }
+    nav ul { list-style: none; display: flex; gap: 1rem; margin: 0; padding: 0; }
+    nav a { color: white; text-decoration: none; cursor: pointer; padding: 0.5rem 0.8rem; border-radius: 4px; transition: background 0.2s; }
+    nav a:hover, nav a.active { background: rgba(255,255,255,0.2); }
+    .container { max-width: 1200px; margin: 2rem auto; padding: 0 1rem; }
+    .card { background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.06); margin-bottom: 1.5rem; overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1rem; min-width: 600px; }
+    th, td { padding: 0.85rem; text-align: left; border-bottom: 1px solid #e2e8f0; }
+    th { background: #f8fafc; font-weight: 600; text-transform: uppercase; font-size: 0.85rem; letter-spacing: 0.05em; color: #475569;}
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; }
+    .metric-card { background: white; padding: 1.2rem; border-left: 5px solid var(--primary); border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .metric-value { font-size: 1.6rem; font-weight: bold; margin-top: 0.5rem; color: var(--primary); }
+    .badge { padding: 0.25rem 0.6rem; border-radius: 12px; font-size: 0.8rem; font-weight: bold; color: white; }
+    .badge-win { background: var(--win); }
+    .badge-loss { background: var(--loss); }
+    .badge-draw { background: var(--draw); }
+    .badge-home { background: #3b82f6; }
+    .badge-away { background: #f97316; }
+    button, input, select { padding: 0.6rem 1rem; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 0.95rem; }
+    button { background: var(--primary); color: white; border: none; cursor: pointer; font-weight: bold; }
+    button:hover { opacity: 0.9; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="brand">⚽ FC Cloud Manager</div>
+    <ul id="nav-links">
+      <li><a onclick="showTab('dashboard')" class="active" id="nav-dashboard">Dashboard</a></li>
+      <li><a onclick="showTab('players')" id="nav-players">First Team</a></li>
+      <li><a onclick="showTab('fixtures')" id="nav-fixtures">Fixtures & Results</a></li>
+      <li><a onclick="showTab('stats')" id="nav-stats">Player Stats</a></li>
+      <li><a onclick="showTab('profile')" id="nav-profile">Manager</a></li>
+      <li><a onclick="logout()">Logout</a></li>
+    </ul>
+  </nav>
+
+  <div class="container">
+    <!-- Auth Section -->
+    <div id="view-login" class="card hidden">
+      <h2>Manager Access Portal</h2>
+      <input type="text" id="username" placeholder="Username (manager)" style="display:block; width: 100%; max-width: 300px; margin-bottom: 1rem;" />
+      <input type="password" id="password" placeholder="Password (admin123)" style="display:block; width: 100%; max-width: 300px; margin-bottom: 1rem;" />
+      <button onclick="login()">Enter Dugout</button>
+    </div>
+
+    <!-- Dashboard -->
+    <div id="view-dashboard" class="tab-content">
+      <h2>Club Overview</h2>
+      <div class="stats-grid">
+        <div class="metric-card"><div>Active Squad Size</div><div class="metric-value" id="count-players">18</div></div>
+        <div class="metric-card"><div>Next Fixture</div><div class="metric-value">vs Real Madrid (A)</div></div>
+        <div class="metric-card"><div>Top Goalscorer</div><div class="metric-value">Cristiano (25)</div></div>
+        <div class="metric-card" style="border-left-color: var(--loss);"><div>Medical Room</div><div class="metric-value" style="color: var(--loss);">1 Injured (Neymar)</div></div>
+      </div>
+    </div>
+
+    <!-- Squad Tab -->
+    <div id="view-players" class="tab-content hidden">
+      <div class="card">
+        <h3>Sign New Player</h3>
+        <div style="display:flex; gap: 0.5rem; flex-wrap: wrap;">
+          <input id="p-id" placeholder="Player ID (e.g., P119)" />
+          <input id="p-name" placeholder="Full Name" />
+          <select id="p-pos">
+            <option value="Forward">Forward</option>
+            <option value="Midfielder">Midfielder</option>
+            <option value="Defender">Defender</option>
+            <option value="Goalkeeper">Goalkeeper</option>
+          </select>
+          <input id="p-jersey" type="number" placeholder="Jersey #" style="width: 100px;" />
+          <button onclick="savePlayer()">Register Player</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>First Team Roster</h3>
+        <table>
+          <thead><tr><th>ID</th><th>Name</th><th>Position</th><th>Squad No.</th><th>Fitness</th></tr></thead>
+          <tbody id="player-table"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Fixtures & Results -->
+    <div id="view-fixtures" class="tab-content hidden">
+      <div class="card">
+        <h3>Season Schedule</h3>
+        <table>
+          <thead><tr><th>Date</th><th>Venue</th><th>Opponent</th><th>Competition</th><th>Result / Time</th></tr></thead>
+          <tbody id="fixtures-table">
+            <tr><td>2026-08-15</td><td><span class="badge badge-home">Home</span></td><td>Chelsea FC</td><td>Premier League</td><td><span class="badge badge-win">W 3-1</span></td></tr>
+            <tr><td>2026-08-22</td><td><span class="badge badge-away">Away</span></td><td>Liverpool FC</td><td>Premier League</td><td><span class="badge badge-draw">D 2-2</span></td></tr>
+            <tr><td>2026-08-28</td><td><span class="badge badge-home">Home</span></td><td>Bayern Munich</td><td>Champions League</td><td><span class="badge badge-win">W 2-0</span></td></tr>
+            <tr><td>2026-09-12</td><td><span class="badge badge-away">Away</span></td><td>Real Madrid</td><td>Champions League</td><td><strong>20:00 KO</strong></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Match Stats -->
+    <div id="view-stats" class="tab-content hidden">
+      <div class="card">
+        <h3>Season Player Statistics</h3>
+        <table>
+          <thead><tr><th>Player</th><th>Matches</th><th>Goals</th><th>Assists</th><th>Avg Rating</th></tr></thead>
+          <tbody id="stats-table">
+            <tr><td>Cristiano</td><td>15</td><td>25</td><td>4</td><td>9.4</td></tr>
+            <tr><td>Pele</td><td>12</td><td>18</td><td>8</td><td>9.1</td></tr>
+            <tr><td>De Bruyne</td><td>15</td><td>4</td><td>22</td><td>8.9</td></tr>
+            <tr><td>Maldini</td><td>14</td><td>1</td><td>3</td><td>8.8</td></tr>
+            <tr><td>Haaland</td><td>10</td><td>12</td><td>2</td><td>8.5</td></tr>
+            <tr><td>Kante</td><td>15</td><td>2</td><td>5</td><td>8.7</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Profile -->
+    <div id="view-profile" class="tab-content hidden card">
+      <h2>Manager Details</h2>
+      <p><strong>Name:</strong> S.Mohamed Ashiq</p>
+      <p><strong>Role:</strong> First Team Manager</p>
+      <p><strong>Club:</strong> FC Cloud Rovers</p>
+      <p><strong>Win Rate:</strong> 85.0%</p>
+      <p><strong>Preferred Formation:</strong> 4-3-3 Attack</p>
+    </div>
+  </div>
+
+  <script>
+    // Set your AWS API Gateway URL here
+    const API_BASE_URL = "https://4pay8qj2g2.execute-api.ap-southeast-2.amazonaws.com/"; 
+
+    // Updated Roster with your requested players
+    let localPlayers = [
+      {playerId: "P101", name: "Cristiano", position: "Forward", jerseyNumber: 7, fitness: "100%"},
+      {playerId: "P102", name: "Neymar", position: "Forward", jerseyNumber: 10, fitness: "Injury (Ankle)"},
+      {playerId: "P103", name: "Maldini", position: "Defender", jerseyNumber: 3, fitness: "100%"},
+      {playerId: "P104", name: "Sergio", position: "Defender", jerseyNumber: 4, fitness: "100%"},
+      {playerId: "P105", name: "Pele", position: "Forward", jerseyNumber: 10, fitness: "100%"},
+      {playerId: "P106", name: "Kante", position: "Midfielder", jerseyNumber: 7, fitness: "100%"},
+      {playerId: "P107", name: "Mbappe", position: "Forward", jerseyNumber: 9, fitness: "100%"},
+      {playerId: "P108", name: "Haaland", position: "Forward", jerseyNumber: 9, fitness: "90% (Knock)"},
+      {playerId: "P109", name: "Sunil Chhetri", position: "Forward", jerseyNumber: 11, fitness: "100%"},
+      {playerId: "P110", name: "Yamal", position: "Forward", jerseyNumber: 27, fitness: "100%"},
+      {playerId: "P111", name: "Marcelo", position: "Defender", jerseyNumber: 12, fitness: "100%"},
+      {playerId: "P112", name: "Pepe", position: "Defender", jerseyNumber: 3, fitness: "100%"},
+      {playerId: "P113", name: "De Bruyne", position: "Midfielder", jerseyNumber: 17, fitness: "100%"},
+      {playerId: "P114", name: "Henry", position: "Forward", jerseyNumber: 14, fitness: "100%"},
+      {playerId: "P115", name: "Zlatan", position: "Forward", jerseyNumber: 9, fitness: "100%"},
+      {playerId: "P116", name: "Ronaldo", position: "Forward", jerseyNumber: 9, fitness: "100%"},
+      {playerId: "P117", name: "Carlos", position: "Defender", jerseyNumber: 3, fitness: "100%"},
+      {playerId: "P118", name: "Garfield", position: "Goalkeeper", jerseyNumber: 1, fitness: "100% (Sleepy)"}
+    ];
+
+    function showTab(tabId) {
+      document.querySelectorAll('.tab-content, #view-login').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('nav a').forEach(el => el.classList.remove('active'));
+      const target = document.getElementById('view-' + tabId);
+      if(target) target.classList.remove('hidden');
+      const nav = document.getElementById('nav-' + tabId);
+      if(nav) nav.classList.add('active');
+    }
+
+    function renderPlayers() {
+      const tbody = document.getElementById('player-table');
+      tbody.innerHTML = localPlayers.map(p => 
+        `<tr>
+          <td>${p.playerId}</td>
+          <td><strong>${p.name}</strong></td>
+          <td>${p.position}</td>
+          <td>#${p.jerseyNumber}</td>
+          <td style="color: ${p.fitness.includes('Injury') || p.fitness.includes('Knock') ? 'var(--loss)' : (p.fitness.includes('Sleepy') ? 'var(--accent)' : 'var(--win)')}">${p.fitness}</td>
+        </tr>`
+      ).join('');
+      document.getElementById('count-players').innerText = localPlayers.length;
+    }
+
+    async function savePlayer() {
+      const newPlayer = {
+        playerId: document.getElementById('p-id').value,
+        name: document.getElementById('p-name').value,
+        position: document.getElementById('p-pos').value,
+        jerseyNumber: parseInt(document.getElementById('p-jersey').value),
+        fitness: "100%"
+      };
+
+      if (API_BASE_URL) {
+        try {
+          await fetch(`${API_BASE_URL}/players`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(newPlayer)
+          });
+        } catch (err) { console.error("API error", err); }
+      }
+
+      localPlayers.push(newPlayer);
+      renderPlayers();
+      
+      // Clear inputs
+      document.getElementById('p-id').value = '';
+      document.getElementById('p-name').value = '';
+      document.getElementById('p-jersey').value = '';
+    }
+
+    function login() {
+      sessionStorage.setItem('isLoggedIn', 'true');
+      document.getElementById('nav-links').style.display = 'flex';
+      showTab('dashboard');
+    }
+
+    function logout() {
+      sessionStorage.removeItem('isLoggedIn');
+      showTab('login');
+      document.getElementById('nav-links').style.display = 'none';
+    }
+
+    window.onload = () => {
+      renderPlayers();
+      if(!sessionStorage.getItem('isLoggedIn')) {
+        showTab('login');
+        document.getElementById('nav-links').style.display = 'none';
+      }
+    };
+  </script>
+</body>
+</html>
