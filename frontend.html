@@ -139,6 +139,10 @@
   <script>
     // Set your AWS API Gateway URL here
     const API_BASE_URL = "https://4pay8qj2g2.execute-api.ap-southeast-2.amazonaws.com/"; 
+    const getApiUrl = (endpoint) => {
+      const base = (API_BASE_URL || '').replace(/\/+$/, '');
+      return base ? `${base}${endpoint}` : '';
+    };
 
     // Updated Roster with your requested players
     let localPlayers = [
@@ -185,6 +189,23 @@
       document.getElementById('count-players').innerText = localPlayers.length;
     }
 
+    async function loadPlayersFromAPI() {
+      const url = getApiUrl('/players');
+      if (!url) return;
+      try {
+        const res = await fetch(url);
+        if (res.ok) {
+          const remotePlayers = await res.json();
+          if (Array.isArray(remotePlayers) && remotePlayers.length > 0) {
+            localPlayers = remotePlayers;
+            renderPlayers();
+          }
+        }
+      } catch (err) {
+        console.warn("Using local roster fallback. Remote API unreachable:", err);
+      }
+    }
+
     async function savePlayer() {
       const newPlayer = {
         playerId: document.getElementById('p-id').value,
@@ -194,9 +215,10 @@
         fitness: "100%"
       };
 
-      if (API_BASE_URL) {
+      const url = getApiUrl('/players');
+      if (url) {
         try {
-          await fetch(`${API_BASE_URL}/players`, {
+          await fetch(url, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(newPlayer)
@@ -225,8 +247,9 @@
       document.getElementById('nav-links').style.display = 'none';
     }
 
-    window.onload = () => {
+    window.onload = async () => {
       renderPlayers();
+      await loadPlayersFromAPI();
       if(!sessionStorage.getItem('isLoggedIn')) {
         showTab('login');
         document.getElementById('nav-links').style.display = 'none';

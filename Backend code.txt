@@ -1,4 +1,4 @@
-# my backend code
+# FC Cloud Manager - AWS Lambda Backend Code
 import json
 import boto3
 from decimal import Decimal
@@ -16,14 +16,26 @@ class DecimalEncoder(json.JSONEncoder):
         return super(DecimalEncoder, self).default(obj)
 
 def lambda_handler(event, context):
-    http_method = event.get('requestContext', {}).get('http', {}).get('method', '')
-    path = event.get('requestContext', {}).get('http', {}).get('path', '')
+    http_method = (
+        event.get('requestContext', {}).get('http', {}).get('method') or
+        event.get('httpMethod', '')
+    ).upper()
+
+    raw_path = (
+        event.get('requestContext', {}).get('http', {}).get('path') or
+        event.get('rawPath') or
+        event.get('path', '')
+    )
+    # Normalize double slashes and trailing slashes
+    while "//" in raw_path:
+        raw_path = raw_path.replace("//", "/")
+    path = raw_path[:-1] if len(raw_path) > 1 and raw_path.endswith('/') else raw_path
 
     # Required to allow your web browser to communicate with the API
     cors_headers = {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "Content-Type,Authorization",
+        "Access-Control-Allow-Headers": "Content-Type,Authorization,X-Requested-With",
         "Access-Control-Allow-Methods": "GET,POST,OPTIONS"
     }
 
@@ -35,25 +47,49 @@ def lambda_handler(event, context):
         if path == "/players":
             if http_method == 'GET':
                 response = players_table.scan()
-                return {"statusCode": 200, "headers": cors_headers, "body": json.dumps(response.get('Items', []), cls=DecimalEncoder)}
+                return {
+                    "statusCode": 200,
+                    "headers": cors_headers,
+                    "body": json.dumps(response.get('Items', []), cls=DecimalEncoder)
+                }
                     
             elif http_method == 'POST':
                 body = json.loads(event.get('body', '{}'))
                 players_table.put_item(Item=body)
-                return {"statusCode": 201, "headers": cors_headers, "body": json.dumps({"message": "Player permanently saved!", "item": body}, cls=DecimalEncoder)}
+                return {
+                    "statusCode": 201,
+                    "headers": cors_headers,
+                    "body": json.dumps({"message": "Player permanently saved!", "item": body}, cls=DecimalEncoder)
+                }
         
         # Route for Match Schedule
         elif path == "/fixtures":
             if http_method == 'GET':
                 response = fixtures_table.scan()
-                return {"statusCode": 200, "headers": cors_headers, "body": json.dumps(response.get('Items', []), cls=DecimalEncoder)}
+                return {
+                    "statusCode": 200,
+                    "headers": cors_headers,
+                    "body": json.dumps(response.get('Items', []), cls=DecimalEncoder)
+                }
                     
             elif http_method == 'POST':
                 body = json.loads(event.get('body', '{}'))
                 fixtures_table.put_item(Item=body)
-                return {"statusCode": 201, "headers": cors_headers, "body": json.dumps({"message": "Fixture permanently saved!", "item": body}, cls=DecimalEncoder)}
+                return {
+                    "statusCode": 201,
+                    "headers": cors_headers,
+                    "body": json.dumps({"message": "Fixture permanently saved!", "item": body}, cls=DecimalEncoder)
+                }
 
-        return {"statusCode": 404, "headers": cors_headers, "body": json.dumps({"message": "Route Not Found"})}
+        return {
+            "statusCode": 404,
+            "headers": cors_headers,
+            "body": json.dumps({"message": "Route Not Found"})
+        }
         
     except Exception as e:
-        return {"statusCode": 500, "headers": cors_headers, "body": json.dumps({"error": str(e)})}
+        return {
+            "statusCode": 500,
+            "headers": cors_headers,
+            "body": json.dumps({"error": str(e)})
+        }
